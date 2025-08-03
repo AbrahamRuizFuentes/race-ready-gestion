@@ -1,0 +1,11 @@
+# Archivos temporales de sistema
+.DS_Store
+Thumbs.db
+
+# Archivos de respaldo
+*.bak
+*.tmp
+
+# Configuración del entorno de desarrollo (si aplicara)
+.vscode/
+.env
