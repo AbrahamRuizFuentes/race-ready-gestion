@@ -1,7 +1,7 @@
 
 function onOpen() {
   SpreadsheetApp.getUi()
-    .createMenu("Race Ready")
+    .createMenu("Gestiona RR")
     .addItem("Ingreso Rápido de Venta", "mostrarFormulario")
     .addItem("Ingreso Rápido de Gasto", "mostrarFormularioGasto")
     .addItem("Actualizar Balance", "actualizarBalanceMensual")
@@ -10,7 +10,7 @@ function onOpen() {
 
 
 function mostrarFormulario() {
-  var html = HtmlService.createHtmlOutputFromFile("formulario")
+  var html = HtmlService.createHtmlOutputFromFile("formularioVenta")
       .setWidth(400)
       .setHeight(500);
   SpreadsheetApp.getUi().showModalDialog(html, "Ingreso Rápido de Venta o Merma");
@@ -41,57 +41,62 @@ function obtenerDatosProducto(idProducto) {
 }
 
 
-function registrarIngreso(data) {
-  var hoja = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(
+function registrarIngresoMultiple(data) {
+  const hoja = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(
     data.esMerma ? "Merma" : "Ventas"
   );
-  var fecha = Utilities.formatDate(new Date(), "America/Santiago", "dd-MM-yyyy HH:mm:ss");
-  if (data.esMerma) {
-    hoja.appendRow([
-      fecha,
-      data.idProducto,
-      data.nombreProducto,
-      data.cantidad,
-      data.precioUnitario,
-      data.cantidad * data.precioUnitario,
-      data.cliente || "",
-      data.mailCliente || "",
-      "Merma registrada desde formulario"
-    ]);
-  } else {
-    var totalVenta = data.cantidad * data.precioUnitario * (1 - data.descuento);
-    var iva = totalVenta * 0.19;
-    var margenUnitario = data.precioUnitario - data.costoUnitario;
-    hoja.appendRow([
-      fecha,
-      data.idProducto,
-      data.nombreProducto,
-      data.cantidad,
-      data.precioUnitario,
-      data.cantidad * data.precioUnitario,
-      data.descuento,
-      totalVenta,
-      iva,
-      data.costoUnitario,
-      margenUnitario,
-      margenUnitario * data.cantidad,
-      data.cliente,
-      data.mailCliente
-    ]);
-  }
-    var hojaProductos = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("Productos");
-    var datos = hojaProductos.getDataRange().getValues();
-    for (var i = 1; i < datos.length; i++) {
-     if (datos[i][1] == data.idProducto) { // Columna B = ID Producto
-      var stockActual = datos[i][11]; // columna l = índice 11
-      hojaProductos.getRange(i + 1, 12).setValue(stockActual - data.cantidad);
-      break;
+  const hojaProductos = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("Productos");
+  const datosProductos = hojaProductos.getDataRange().getValues();
+  const fecha = Utilities.formatDate(new Date(), "America/Santiago", "dd-MM-yyyy HH:mm:ss");
+
+  for (let i = 0; i < data.productos.length; i++) {
+    const item = data.productos[i];
+    const total = item.cantidad * item.precio * (1 - item.descuento);
+    const iva = total * 0.19;
+    const margenUnitario = item.precio - item.costo;
+    const filaProducto = datosProductos.findIndex(p => p[1] == item.id); // Columna B: ID
+
+    if (data.esMerma) {
+      hoja.appendRow([
+        fecha,
+        item.id,
+        item.nombre,
+        item.cantidad,
+        item.precio,
+        item.cantidad * item.precio,
+        data.cliente || "",
+        data.mailCliente || "",
+        "Merma registrada desde formulario"
+      ]);
+    } else {
+      hoja.appendRow([
+        fecha,
+        item.id,
+        item.nombre,
+        item.cantidad,
+        item.precio,
+        item.cantidad * item.precio,
+        item.descuento,
+        total,
+        iva,
+        item.costo,
+        margenUnitario,
+        margenUnitario * item.cantidad,
+        data.cliente || "",
+        data.mailCliente || "",
+        data.canal || ""
+      ]);
+    }
+
+    // Actualizar stock si el producto existe
+    if (filaProducto > 0) {
+      const stockActual = datosProductos[filaProducto][11]; // Columna L
+      hojaProductos.getRange(filaProducto + 1, 12).setValue(stockActual - item.cantidad);
     }
   }
-  actualizarBalanceMensual();
-
 
 }
+
 
 function obtenerListaProductos() {
   var hoja = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("Productos");
@@ -128,10 +133,14 @@ function registrarGasto(data) {
     data.nota
   ]);
 
-  actualizarBalanceMensual();
 }
 
 function actualizarBalanceMensual() {
+
+  const ui = SpreadsheetApp.getUi();
+  ui.alert("Actualizando balance mensual. Esto puede tardar unos segundos...");
+
+
   const hojaVentas = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("Ventas");
   const hojaGastos = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("Gastos");
   const hojaBalance = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("Balance");

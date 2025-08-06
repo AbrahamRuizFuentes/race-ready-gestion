@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <base target="_top">
+  <style>
+    body { font-family: Arial; padding: 20px; }
+    label { display: block; margin-top: 10px; font-weight: bold; }
+    input, select, button { width: 100%; padding: 6px; margin-top: 4px; }
+    button { font-size: 16px; background-color: #2196F3; color: white; border: none; cursor: pointer; }
+    .item { border: 1px solid #ccc; padding: 10px; margin-bottom: 15px; background: #f9f9f9; }
+    .remove-btn { background-color: #f44336; margin-top: 10px; }
+  </style>
+
+  <script>
+    let productos = [];
+
+    function cargarProductos() {
+      google.script.run.withSuccessHandler(function(lista) {
+        productos = lista;
+      }).obtenerListaProductos();
+    }
+
+    function agregarItem() {
+      const contenedor = document.getElementById("items");
+      const index = contenedor.children.length;
+
+      const itemDiv = document.createElement("div");
+      itemDiv.className = "item";
+      itemDiv.innerHTML = `
+        <label>Producto</label>
+        <input type="text" placeholder="Ej: barra, isotónica..." oninput="buscarProducto(this, ${index})" class="buscador">
+        <div class="sugerencias"></div>
+
+        <label>Cantidad</label>
+        <input type="number" class="cantidad" min="1">
+
+        <label>% Descuento (ej: 0.10)</label>
+        <input type="number" class="descuento" step="0.01">
+
+        <button type="button" class="remove-btn" onclick="eliminarItem(this)">Eliminar ítem</button>
+      `;
+      contenedor.appendChild(itemDiv);
+    }
+
+    function eliminarItem(btn) {
+      btn.parentElement.remove();
+    }
+
+    function buscarProducto(input, index) {
+      const contenedor = input.nextElementSibling;
+      contenedor.innerHTML = "";
+      const texto = input.value.toLowerCase();
+      if (!texto) return;
+
+      const resultados = productos.filter(p => p.nombre.toLowerCase().includes(texto));
+      resultados.forEach(p => {
+        const div = document.createElement("div");
+        div.textContent = p.nombre;
+        div.style.cursor = "pointer";
+        div.onclick = () => {
+          input.value = p.nombre;
+          input.dataset.id = p.id;
+          input.dataset.precio = p.precio;
+          input.dataset.costo = p.costo;
+          contenedor.innerHTML = "";
+        };
+        contenedor.appendChild(div);
+      });
+    }
+
+    function enviarFormulario() {
+      const items = [];
+      const itemDivs = document.querySelectorAll("#items .item");
+
+      for (const div of itemDivs) {
+        const buscador = div.querySelector(".buscador");
+        const id = buscador.dataset.id;
+        const nombre = buscador.value;
+        const precio = parseFloat(buscador.dataset.precio);
+        const costo = parseFloat(buscador.dataset.costo);
+        const cantidad = parseFloat(div.querySelector(".cantidad").value);
+        const descuento = parseFloat(div.querySelector(".descuento").value) || 0;
+
+        if (!id || !cantidad || cantidad <= 0) {
+          alert("Revisa los campos de cada ítem.");
+          return;
+        }
+
+        items.push({ id, nombre, precio, costo, cantidad, descuento });
+      }
+
+      const data = {
+        esMerma: document.getElementById("esMerma").checked,
+        cliente: document.getElementById("cliente").value || "",
+        mailCliente: document.getElementById("mailCliente").value || "",
+        canal: document.getElementById("canal").value || "",
+        productos: items
+      };
+
+      google.script.run.withSuccessHandler(() => {
+        alert("Registro exitoso");
+        google.script.host.close();
+      }).registrarIngresoMultiple(data);
+    }
+
+    window.onload = cargarProductos;
+  </script>
+</head>
+<body>
+  <h2>Ingreso Rápido de Venta o Merma</h2>
+
+  <div id="items"></div>
+  <button type="button" onclick="agregarItem()">Agregar otro ítem</button>
+
+  <label><input type="checkbox" id="esMerma"> ¿Es Merma?</label>
+
+  <label for="cliente">Cliente</label>
+  <input type="text" id="cliente" placeholder="Nombre del cliente">
+
+  <label for="mailCliente">Mail Cliente</label>
+  <input type="email" id="mailCliente" placeholder="cliente@email.com">
+
+  <label for="canal">Canal de Venta</label>
+  <select id="canal" required>
+    <option value="">-- Selecciona un canal --</option>
+    <option value="Página Web">Página Web</option>
+    <option value="En Tienda">En Tienda</option>
+    <option value="Transferencia">Transferencia</option>
+    <option value="Efectivo">Efectivo</option>
+  </select>
+
+  <button onclick="enviarFormulario()">Registrar</button>
+</body>
+</html>
